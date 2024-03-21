@@ -4,25 +4,22 @@
 #![feature(async_fn_in_trait)]
 #![allow(stable_features, unknown_lints, async_fn_in_trait)]
 
-use core::panic::AssertUnwindSafe;
-use core::sync::atomic::{AtomicBool, Ordering};
-
-use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
-use embassy_sync::mutex::Mutex;
-use embassy_sync::signal::Signal;
-use heapless::String;
-
-use defmt::{info, unwrap, warn};
+use defmt::{info, unwrap};
 use embassy_executor::Spawner;
 use embassy_futures::join::join3;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pin, Pull};
+use embassy_rp::gpio::{AnyPin, Input, Pin, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, InterruptHandler};
-use embassy_time::{Duration, Timer};
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::mutex::Mutex;
+use embassy_sync::signal::Signal;
+use embassy_sync::waitqueue::AtomicWaker;
+use embassy_time::Timer;
 use embassy_usb::class::hid::{HidReaderWriter, ReportId, RequestHandler, State};
 use embassy_usb::control::OutResponse;
 use embassy_usb::Builder;
+use heapless::String;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -129,11 +126,14 @@ async fn io_task(button_pin: AnyPin) {
     loop {
         button.wait_for_falling_edge().await;
 
-        info!("BUtton Pressed");
-
+        info!("Button Pressed");
         WRITE.signal(true);
 
-        Timer::after_millis(100).await;
+        let mut asdf = MESSAGE.lock().await;
+        *asdf = String::try_from("value").unwrap_or(String::new());
+
+        Timer::after_millis(10).await;
+        button.wait_for_high().await;
     }
 }
 
