@@ -4,11 +4,17 @@
 #![feature(async_fn_in_trait)]
 #![allow(stable_features, unknown_lints, async_fn_in_trait)]
 
+use core::panic::AssertUnwindSafe;
 use core::sync::atomic::{AtomicBool, Ordering};
+
+use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
+use embassy_sync::mutex::Mutex;
+use embassy_sync::signal::Signal;
+use heapless::String;
 
 use defmt::{info, unwrap, warn};
 use embassy_executor::Spawner;
-use embassy_futures::join::{join, join3};
+use embassy_futures::join::join3;
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{AnyPin, Input, Level, Output, Pin, Pull};
 use embassy_rp::peripherals::USB;
@@ -17,14 +23,15 @@ use embassy_time::{Duration, Timer};
 use embassy_usb::class::hid::{HidReaderWriter, ReportId, RequestHandler, State};
 use embassy_usb::control::OutResponse;
 use embassy_usb::Builder;
-use usbd_hid::descriptor::{MouseReport, SerializedDescriptor};
+use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
 });
 
-static ENABLE_WIGGLE: AtomicBool = AtomicBool::new(false);
+static WRITE: Signal<ThreadModeRawMutex, bool> = Signal::new();
+static MESSAGE: Mutex<ThreadModeRawMutex, String<256>> = Mutex::new(String::new());
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
@@ -57,18 +64,15 @@ async fn main(spawner: Spawner) {
     );
 
     let config = embassy_usb::class::hid::Config {
-        report_descriptor: MouseReport::desc(),
+        report_descriptor: KeyboardReport::desc(),
         request_handler: Some(&request_handler),
         poll_ms: 60,
         max_packet_size: 8,
     };
 
-    unwrap!(spawner.spawn(io_task(
-        peripherals.PIN_13.degrade(),
-        peripherals.PIN_9.degrade()
-    )));
+    unwrap!(spawner.spawn(io_task(peripherals.PIN_13.degrade())));
 
-    let writer_reader = HidReaderWriter::<_, 5, 5>::new(&mut builder, &mut state, config);
+    let writer_reader = HidReaderWriter::<_, 20, 20>::new(&mut builder, &mut state, config);
 
     let (reader, mut writer) = writer_reader.split();
 
@@ -77,24 +81,33 @@ async fn main(spawner: Spawner) {
     let usb_future = usb.run();
 
     let hid_in_future = async {
-        let mut y: i8 = 5;
-
         loop {
-            let enable = ENABLE_WIGGLE.load(Ordering::Relaxed);
+            WRITE.wait().await;
 
-            Timer::after(Duration::from_millis(500)).await;
-            if enable {
-                y = -y;
-                let report = MouseReport {
-                    buttons: 0,
-                    x: 0,
-                    y,
-                    wheel: 0,
-                    pan: 0,
-                };
+            let asdf = MESSAGE.lock().await;
+
+            for char in asdf.as_bytes() {
+                let report = map_key(&char);
+
                 match writer.write_serialize(&report).await {
                     Ok(()) => {}
-                    Err(e) => warn!("Failed to send report: {:?}", e),
+                    Err(error) => {
+                        info!("{}", error);
+                    }
+                }
+
+                let report = KeyboardReport {
+                    keycodes: [0, 0, 0, 0, 0, 0],
+                    leds: 0,
+                    modifier: 0,
+                    reserved: 0,
+                };
+
+                match writer.write_serialize(&report).await {
+                    Ok(()) => {}
+                    Err(error) => {
+                        info!("{}", error);
+                    }
                 }
             }
         }
@@ -110,24 +123,15 @@ async fn main(spawner: Spawner) {
 }
 
 #[embassy_executor::task]
-async fn io_task(button_pin: AnyPin, led_pin: AnyPin) {
+async fn io_task(button_pin: AnyPin) {
     let mut button = Input::new(button_pin, Pull::Up);
-    let mut led = Output::new(led_pin, Level::Low);
-
-    let mut value = false;
 
     loop {
         button.wait_for_falling_edge().await;
-        value = !value;
 
-        let level = match value {
-            true => Level::High,
-            false => Level::Low,
-        };
-        led.set_level(level);
+        info!("BUtton Pressed");
 
-        info!("falling edge detected");
-        ENABLE_WIGGLE.store(value, Ordering::Relaxed);
+        WRITE.signal(true);
 
         Timer::after_millis(100).await;
     }
@@ -153,5 +157,54 @@ impl RequestHandler for MyRequestHandler {
     fn get_idle_ms(&self, id: Option<ReportId>) -> Option<u32> {
         info!("Get idle rate for {:?}", id);
         None
+    }
+}
+
+fn map_key(key: &u8) -> KeyboardReport {
+    let key = match key {
+        b'a' => 0x04,
+        b'b' => 0x05,
+        b'c' => 0x06,
+        b'd' => 0x07,
+        b'e' => 0x08,
+        b'f' => 0x09,
+        b'g' => 0x0A,
+        b'h' => 0x0B,
+        b'i' => 0x0C,
+        b'j' => 0x0D,
+        b'k' => 0x0E,
+        b'l' => 0x0F,
+        b'm' => 0x10,
+        b'n' => 0x11,
+        b'o' => 0x12,
+        b'p' => 0x13,
+        b'q' => 0x14,
+        b'r' => 0x15,
+        b's' => 0x16,
+        b't' => 0x17,
+        b'u' => 0x18,
+        b'v' => 0x19,
+        b'w' => 0x1A,
+        b'x' => 0x1B,
+        b'y' => 0x1C,
+        b'z' => 0x1D,
+        b'1' => 0x1E,
+        b'2' => 0x1F,
+        b'3' => 0x20,
+        b'4' => 0x21,
+        b'5' => 0x22,
+        b'6' => 0x23,
+        b'7' => 0x24,
+        b'8' => 0x25,
+        b'9' => 0x26,
+        b'0' => 0x27,
+        _ => 0,
+    };
+
+    KeyboardReport {
+        modifier: 0,
+        reserved: 0,
+        leds: 0,
+        keycodes: [key, 0, 0, 0, 0, 0],
     }
 }
