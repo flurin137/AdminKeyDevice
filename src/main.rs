@@ -129,8 +129,6 @@ async fn io_task(button_pin: AnyPin) {
         info!("Button Pressed");
         WRITE.signal(true);
 
-        let mut asdf = MESSAGE.lock().await;
-        *asdf = String::try_from("value").unwrap_or(String::new());
 
         Timer::after_millis(10).await;
         button.wait_for_high().await;
@@ -147,6 +145,9 @@ impl RequestHandler for MyRequestHandler {
 
     fn set_report(&self, id: ReportId, data: &[u8]) -> OutResponse {
         info!("Set report for {:?}: {=[u8]}", id, data);
+
+        // let mut asdf = MESSAGE.lock().await;
+        // *asdf = String::try_from("value").unwrap_or(String::new());
         OutResponse::Accepted
     }
 
