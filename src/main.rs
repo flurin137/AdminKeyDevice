@@ -14,7 +14,6 @@ use embassy_rp::usb::{Driver, InterruptHandler};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
-use embassy_sync::waitqueue::AtomicWaker;
 use embassy_time::Timer;
 use embassy_usb::class::hid::{HidReaderWriter, ReportId, RequestHandler, State};
 use embassy_usb::control::OutResponse;
@@ -114,8 +113,6 @@ async fn main(spawner: Spawner) {
         reader.run(false, &request_handler).await;
     };
 
-    // Run everything concurrently.
-    // If we had made everything `'static` above instead, we could do this using separate tasks instead.
     join3(usb_future, hid_in_future, hid_out_future).await;
 }
 
@@ -129,8 +126,7 @@ async fn io_task(button_pin: AnyPin) {
         info!("Button Pressed");
         WRITE.signal(true);
 
-
-        Timer::after_millis(10).await;
+        Timer::after_millis(50).await;
         button.wait_for_high().await;
     }
 }
@@ -162,7 +158,12 @@ impl RequestHandler for MyRequestHandler {
 }
 
 fn map_key(key: &u8) -> KeyboardReport {
-    let key = match key {
+    let modifier = match key.is_ascii_uppercase() {
+        true => 0x02,
+        false => 0,
+    };
+
+    let key = match key.to_ascii_lowercase() {
         b'a' => 0x04,
         b'b' => 0x05,
         b'c' => 0x06,
@@ -203,7 +204,7 @@ fn map_key(key: &u8) -> KeyboardReport {
     };
 
     KeyboardReport {
-        modifier: 0,
+        modifier,
         reserved: 0,
         leds: 0,
         keycodes: [key, 0, 0, 0, 0, 0],
