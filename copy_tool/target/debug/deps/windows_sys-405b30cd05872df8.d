@@ -1,0 +1,10 @@
+C:\Users\flufe\_Source\_rust\AdminKey\copy_tool\target\debug\deps\libwindows_sys-405b30cd05872df8.rmeta: C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\lib.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\Foundation\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\literals.rs
+
+C:\Users\flufe\_Source\_rust\AdminKey\copy_tool\target\debug\deps\windows_sys-405b30cd05872df8.d: C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\lib.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\Foundation\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\mod.rs C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\literals.rs
+
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\lib.rs:
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\mod.rs:
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\mod.rs:
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\Windows\Win32\Foundation\mod.rs:
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\mod.rs:
+C:\Users\flufe\.cargo\registry\src\index.crates.io-6f17d22bba15001f\windows-sys-0.48.0\src\core\literals.rs:
