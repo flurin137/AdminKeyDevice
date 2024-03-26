@@ -1,23 +1,55 @@
+mod serial_wrapper;
+
+use crate::serial_wrapper::SerialWrapper;
+use serial2::SerialPort;
+use std::{io, path::PathBuf};
+
 fn main() {
-    let api = hidapi::HidApi::new().unwrap();
+    match write_message("fuuuu") {
+        Ok(_) => println!("Sucessfully written password to device"),
+        Err(err) => println!("Error writing to device: {err}"),
+    }
+}
 
-    let mut correct_device = api
-        .device_list()
-        .filter(|d| d.manufacturer_string() == Some("Fx137"));
+fn write_message(message: &str) -> io::Result<()> {
+    let available_ports = SerialPort::available_ports()?;
+    let matching_device = available_ports
+        .iter()
+        .find(|a| is_correct_device(*a))
+        .ok_or(std::io::Error::new(
+            io::ErrorKind::NotFound,
+            "No matching device found",
+        ))?;
 
-    if let Some(device) = correct_device.next() {
-        print!("{:?}", device);
+    let port = SerialPort::open(matching_device, 115200)?;
 
-        let vendor_id = 49374;
-        let product_id = 51966;
+    loop {
+        let bytes = message.as_bytes();
+        port.write(&bytes)?;
 
-        let device = api.open(vendor_id, product_id).unwrap();
-        let buf = [0u8, 1, 2, 3, 4];
-        //let res = device.write(&buf).unwrap();
-        //println!("Wrote: {:?} byte(s)", res);
+        let mut buffer = [0; 256];
+        port.read(&mut buffer)?;
+    }
+}
 
-        device.write(&[0x11, 0xff, 0x05, 0x1c, 0]).unwrap();
+fn is_correct_device(device: &PathBuf) -> bool {
+    println!("Opening Port {:?}", device);
+
+    let port = match SerialWrapper::new(device) {
+        Ok(port) => port,
+        _ => return false,
+    };
+
+    if let Err(_) = port.write("Saaaay Whaaat") {
+        return false;
     }
 
-    println!("Hello, world!");
+    let message = match port.read() {
+        Ok(message) => message,
+        Err(_) => return false,
+    };
+
+    println!("Device returned message {message}");
+
+    return message == "Fuck YOU";
 }

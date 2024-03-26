@@ -4,19 +4,21 @@
 #![feature(async_fn_in_trait)]
 #![allow(stable_features, unknown_lints, async_fn_in_trait)]
 
-use defmt::{info, unwrap};
+use defmt::info;
 use embassy_executor::Spawner;
-use embassy_futures::join::join3;
+use embassy_futures::join::join4;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{AnyPin, Input, Pin, Pull};
+use embassy_rp::gpio::{Input, Pull};
 use embassy_rp::peripherals::USB;
-use embassy_rp::usb::{Driver, InterruptHandler};
+use embassy_rp::usb::{Driver, Instance, InterruptHandler};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
 use embassy_sync::mutex::Mutex;
 use embassy_sync::signal::Signal;
 use embassy_time::Timer;
-use embassy_usb::class::hid::{HidReaderWriter, ReportId, RequestHandler, State};
+use embassy_usb::class::cdc_acm::CdcAcmClass;
+use embassy_usb::class::hid::{HidWriter, ReportId, RequestHandler};
 use embassy_usb::control::OutResponse;
+use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
 use heapless::String;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
@@ -29,17 +31,25 @@ bind_interrupts!(struct Irqs {
 static WRITE: Signal<ThreadModeRawMutex, bool> = Signal::new();
 static MESSAGE: Mutex<ThreadModeRawMutex, String<256>> = Mutex::new(String::new());
 
+const VENDOR_ID: u16 = 0x72F3;
+const PRODUCT_ID: u16 = 0x1337;
+
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
+async fn main(_spawner: Spawner) {
     let peripherals = embassy_rp::init(Default::default());
     let driver = Driver::new(peripherals.USB, Irqs);
 
-    let mut config = embassy_usb::Config::new(0xc0de, 0xcafe);
+    let mut config = embassy_usb::Config::new(VENDOR_ID, PRODUCT_ID);
     config.manufacturer = Some("Fx137");
     config.product = Some("Wiggle wiggle wiggle");
     config.serial_number = Some("13371337");
     config.max_power = 100;
     config.max_packet_size_0 = 64;
+
+    config.device_class = 0xEF;
+    config.device_sub_class = 0x02;
+    config.device_protocol = 0x01;
+    config.composite_with_iads = true;
 
     let mut device_descriptor = [0; 256];
     let mut config_descriptor = [0; 256];
@@ -47,7 +57,8 @@ async fn main(spawner: Spawner) {
     let mut control_buf = [0; 64];
     let request_handler = MyRequestHandler {};
 
-    let mut state = State::new();
+    let mut state = embassy_usb::class::hid::State::new();
+    let mut cdc_state = embassy_usb::class::cdc_acm::State::new();
 
     let mut builder = Builder::new(
         driver,
@@ -59,6 +70,8 @@ async fn main(spawner: Spawner) {
         &mut control_buf,
     );
 
+    let mut cdc_class = CdcAcmClass::new(&mut builder, &mut cdc_state, 64);
+
     let config = embassy_usb::class::hid::Config {
         report_descriptor: KeyboardReport::desc(),
         request_handler: Some(&request_handler),
@@ -66,11 +79,9 @@ async fn main(spawner: Spawner) {
         max_packet_size: 8,
     };
 
-    unwrap!(spawner.spawn(io_task(peripherals.PIN_13.degrade())));
+    let button_pin = peripherals.PIN_13;
 
-    let writer_reader = HidReaderWriter::<_, 20, 20>::new(&mut builder, &mut state, config);
-
-    let (reader, mut writer) = writer_reader.split();
+    let mut writer = HidWriter::<_, 20>::new(&mut builder, &mut state, config);
 
     let mut usb = builder.build();
 
@@ -109,50 +120,68 @@ async fn main(spawner: Spawner) {
         }
     };
 
-    let hid_out_future = async {
-        reader.run(false, &request_handler).await;
+    let io_future = async {
+        let mut button = Input::new(button_pin, Pull::Up);
+
+        loop {
+            button.wait_for_falling_edge().await;
+
+            info!("Button Pressed");
+            WRITE.signal(true);
+
+            Timer::after_millis(50).await;
+            button.wait_for_high().await;
+        }
     };
 
-    join3(usb_future, hid_in_future, hid_out_future).await;
+    let echo_future = async {
+        loop {
+            cdc_class.wait_connection().await;
+            info!("Connected");
+            let _ = echo(&mut cdc_class).await;
+            info!("Disconnected");
+        }
+    };
+
+    join4(usb_future, hid_in_future, io_future, echo_future).await;
 }
 
-#[embassy_executor::task]
-async fn io_task(button_pin: AnyPin) {
-    let mut button = Input::new(button_pin, Pull::Up);
+struct Disconnected {}
 
+impl From<EndpointError> for Disconnected {
+    fn from(val: EndpointError) -> Self {
+        match val {
+            EndpointError::BufferOverflow => panic!("Buffer overflow"),
+            EndpointError::Disabled => Disconnected {},
+        }
+    }
+}
+
+async fn echo<'d, T: Instance + 'd>(
+    class: &mut CdcAcmClass<'d, Driver<'d, T>>,
+) -> Result<(), Disconnected> {
+    let mut buf = [0; 64];
     loop {
-        button.wait_for_falling_edge().await;
-
-        info!("Button Pressed");
-        WRITE.signal(true);
-
-        Timer::after_millis(50).await;
-        button.wait_for_high().await;
+        let n = class.read_packet(&mut buf).await?;
+        let data = &buf[..n];
+        info!("data: {:x}", data);
     }
 }
 
 struct MyRequestHandler {}
 
 impl RequestHandler for MyRequestHandler {
-    fn get_report(&self, id: ReportId, _buf: &mut [u8]) -> Option<usize> {
-        info!("Get report for {:?}", id);
+    fn get_report(&self, _id: ReportId, _buf: &mut [u8]) -> Option<usize> {
         None
     }
 
-    fn set_report(&self, id: ReportId, data: &[u8]) -> OutResponse {
-        info!("Set report for {:?}: {=[u8]}", id, data);
-
-        // let mut asdf = MESSAGE.lock().await;
-        // *asdf = String::try_from("value").unwrap_or(String::new());
+    fn set_report(&self, _id: ReportId, _data: &[u8]) -> OutResponse {
         OutResponse::Accepted
     }
 
-    fn set_idle_ms(&self, id: Option<ReportId>, dur: u32) {
-        info!("Set idle rate for {:?} to {:?}", id, dur);
-    }
+    fn set_idle_ms(&self, _id: Option<ReportId>, _dur: u32) {}
 
-    fn get_idle_ms(&self, id: Option<ReportId>) -> Option<u32> {
-        info!("Get idle rate for {:?}", id);
+    fn get_idle_ms(&self, _id: Option<ReportId>) -> Option<u32> {
         None
     }
 }
