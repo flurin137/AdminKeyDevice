@@ -164,7 +164,14 @@ async fn echo<'d, T: Instance + 'd>(
     loop {
         let n = class.read_packet(&mut buf).await?;
         let data = &buf[..n];
-        info!("data: {:x}", data);
+        info!("Received data: {:x}", data);
+
+        if data == [0x57, 0x68, 0x61, 0x61, 0x61, 0x74] {
+            let response = [0x46, 0x75, 0x63, 0x6b, 0x20, 0x59, 0x4f, 0x55];
+
+            info!("Match :-D");
+            class.write_packet(&response).await?;
+        }
     }
 }
 

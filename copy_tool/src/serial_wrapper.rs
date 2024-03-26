@@ -1,4 +1,4 @@
-use std::{io, path::Path};
+use std::{io, path::Path, thread::sleep, time};
 
 use serial2::SerialPort;
 
@@ -19,9 +19,15 @@ impl SerialWrapper {
     }
 
     pub fn read(&self) -> io::Result<String> {
-        let mut buffer = [0; 256];
-        self.port.read(&mut buffer)?;
+        let mut buffer = [0; 64];
+        
+        let sleep_duration = time::Duration::from_millis(5);
+        sleep(sleep_duration);
 
-        Ok("".to_owned())
+        let count = self.port.read(&mut buffer)?;
+
+        let string = String::from_utf8_lossy(&buffer[..count]).trim().to_owned();
+
+        Ok(string)
     }
 }
