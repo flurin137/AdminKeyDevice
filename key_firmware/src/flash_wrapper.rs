@@ -1,6 +1,6 @@
 use defmt::info;
 use embassy_rp::{
-    flash::{self, Blocking, Flash, ERASE_SIZE},
+    flash::{self, Blocking, Flash},
     peripherals::FLASH,
 };
 
