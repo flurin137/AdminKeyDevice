@@ -1,6 +1,6 @@
 use defmt::info;
 use embassy_rp::{
-    flash::{self, Blocking, Flash},
+    flash::{self, Blocking, Flash, ERASE_SIZE},
     peripherals::FLASH,
 };
 
@@ -31,7 +31,7 @@ impl<'a> FlashWrapper<'a> {
     }
 
     pub async fn read(&mut self) -> Result<[u8; 64], flash::Error> {
-        let mut buffer = [0u8; 64];
+        let mut buffer = [0u8; ERASE_SIZE];
         self.flash.blocking_read(ADDR_OFFSET, &mut buffer)?;
         Ok([0u8; 64])
     }
