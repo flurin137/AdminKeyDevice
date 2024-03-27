@@ -45,14 +45,6 @@ async fn main(_spawner: Spawner) {
 
     let mut flash_wrapper = FlashWrapper::new(peripherals.FLASH);
 
-    let data = &[55u8; 64];
-    match flash_wrapper.write(data) {
-        Err(error) => {
-            print_error(error);
-        }
-        Ok(_) => info!("Written: {:?}", data),
-    }
-
     match flash_wrapper.read().await {
         Ok(data) => {
             info!("Stored data: {:?}", data);
