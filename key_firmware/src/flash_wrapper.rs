@@ -27,12 +27,16 @@ impl<'a> FlashWrapper<'a> {
     }
 
     pub fn write(&mut self, data: &[u8; 64]) -> Result<(), flash::Error> {
+        self.flash
+            .blocking_erase(ADDR_OFFSET, ADDR_OFFSET + ERASE_SIZE as u32)?;
+
         self.flash.blocking_write(ADDR_OFFSET, data)
     }
 
     pub async fn read(&mut self) -> Result<[u8; 64], flash::Error> {
-        let mut buffer = [0u8; ERASE_SIZE];
+        let mut buffer = [0u8; 64];
         self.flash.blocking_read(ADDR_OFFSET, &mut buffer)?;
-        Ok([0u8; 64])
+
+        Ok(buffer)
     }
 }
