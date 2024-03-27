@@ -10,7 +10,6 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_futures::join::join4;
 use embassy_rp::bind_interrupts;
-use embassy_rp::flash::{Async, Flash};
 use embassy_rp::gpio::{Input, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, Instance, InterruptHandler};
@@ -24,7 +23,6 @@ use embassy_usb::control::OutResponse;
 use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
 use flash_wrapper::{print_error, FlashWrapper};
-use heapless::String;
 use usbd_hid::descriptor::{KeyboardReport, SerializedDescriptor};
 use {defmt_rtt as _, panic_probe as _};
 
@@ -33,32 +31,40 @@ bind_interrupts!(struct Irqs {
 });
 
 static WRITE: Signal<ThreadModeRawMutex, bool> = Signal::new();
-static MESSAGE: Mutex<ThreadModeRawMutex, String<256>> = Mutex::new(String::new());
+static MESSAGE: Mutex<ThreadModeRawMutex, [u8; 64]> = Mutex::new([0u8; 64]);
 
 const VENDOR_ID: u16 = 0x72F3;
 const PRODUCT_ID: u16 = 0x1337;
-const FLASH_SIZE: usize = 2 * 1024 * 1024;
 
 #[embassy_executor::main]
 async fn main(_spawner: Spawner) {
     let peripherals = embassy_rp::init(Default::default());
     let driver = Driver::new(peripherals.USB, Irqs);
 
-    let flash = Flash::<_, Async, FLASH_SIZE>::new(peripherals.FLASH, peripherals.DMA_CH0);
-    let mut wrapper = FlashWrapper::new(flash);
+    Timer::after_millis(10).await;
 
-    let buffer = [0; 64];
+    let mut flash_wrapper = FlashWrapper::new(peripherals.FLASH);
 
-    if let Err(error) = wrapper.write_bytes(&buffer) {
-        print_error(error)
-    };
-
-    match wrapper.read().await {
-        Ok(asdf) => {
-            info!("asdf: {:?}", asdf)
+    let data = &[55u8; 64];
+    match flash_wrapper.write(data) {
+        Err(error) => {
+            print_error(error);
         }
-        Err(error) => print_error(error),
+        Ok(_) => info!("Written: {:?}", data),
     }
+
+    match flash_wrapper.read().await {
+        Ok(data) => {
+            info!("Stored data: {:?}", data);
+            let mut message = MESSAGE.lock().await;
+            *message = data;
+        }
+        Err(error) => {
+            print_error(error);
+            let mut message = MESSAGE.lock().await;
+            *message = [55; 64];
+        }
+    };
 
     let mut config = embassy_usb::Config::new(VENDOR_ID, PRODUCT_ID);
     config.manufacturer = Some("Fx137");
@@ -112,10 +118,14 @@ async fn main(_spawner: Spawner) {
         loop {
             WRITE.wait().await;
 
-            let asdf = MESSAGE.lock().await;
+            let message = MESSAGE.lock().await;
 
-            for char in asdf.as_bytes() {
-                let report = map_key(&char);
+            for character in message.iter() {
+                if character == &0u8 {
+                    break;
+                }
+
+                let report = map_key(&character);
 
                 match writer.write_serialize(&report).await {
                     Ok(()) => {}
@@ -159,7 +169,7 @@ async fn main(_spawner: Spawner) {
         loop {
             cdc_class.wait_connection().await;
             info!("Connected");
-            let _ = listen_and_cho(&mut cdc_class).await;
+            let _ = listen_and_echo(&mut cdc_class, &mut flash_wrapper).await;
             info!("Disconnected");
         }
     };
@@ -178,8 +188,9 @@ impl From<EndpointError> for Disconnected {
     }
 }
 
-async fn listen_and_cho<'d, T: Instance + 'd>(
+async fn listen_and_echo<'d, T: Instance + 'd>(
     class: &mut CdcAcmClass<'d, Driver<'d, T>>,
+    flash: &mut FlashWrapper<'d>,
 ) -> Result<(), Disconnected> {
     let mut buf = [0; 64];
     loop {
@@ -190,9 +201,21 @@ async fn listen_and_cho<'d, T: Instance + 'd>(
         if data == [0x57, 0x68, 0x61, 0x61, 0x61, 0x74] {
             let response = [0x46, 0x75, 0x63, 0x6b, 0x20, 0x59, 0x4f, 0x55];
 
-            info!("Match :-D");
             class.write_packet(&response).await?;
         } else {
+            match flash.read().await {
+                Ok(data) => info!("Old data: {:?}", data),
+                Err(err) => print_error(err),
+            };
+
+            if let Err(error) = flash.write(&buf) {
+                print_error(error);
+            }
+
+            let mut message = MESSAGE.lock().await;
+            *message = buf;
+
+            info!("Buffer {:?}", buf);
         }
     }
 }
