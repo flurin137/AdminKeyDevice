@@ -5,7 +5,11 @@ impl Validator {
         Self
     }
 
-    pub fn validate_string(value: String) -> Result<String, String> {
+    pub fn validate(&self, value: String) -> Result<String, String> {
+        if value.len() > 64 {
+            return Err("String is too long".to_owned());
+        }
+
         Ok(value)
     }
 }

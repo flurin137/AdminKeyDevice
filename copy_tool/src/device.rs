@@ -33,7 +33,7 @@ fn get_serial_port() -> Option<SerialWrapper> {
             _ => continue,
         };
 
-        if let Err(_) = port.write("Whaaat") {
+        if port.write("Whaaat").is_err() {
             continue;
         }
 
