@@ -22,3 +22,34 @@ impl Validator {
         Ok(value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_too_long_string() {
+        let validator = Validator::new();
+
+        let input =
+            "dhfdskjhdsggfdskfhgasdkjghfjdsghfadshgfjkasghdfadsgasghdfjaghkdsfahfk".to_string();
+
+        let result = validator.validate(input);
+
+        assert_eq!(Err("String is too long".to_owned()), result)
+    }
+
+    #[test]
+    fn test_invalid_chars() {
+        let validator = Validator::new();
+
+        let input = "*/".to_string();
+
+        let result = validator.validate(input);
+
+        assert_eq!(
+            Err("The string contains invalid characters".to_owned()),
+            result
+        )
+    }
+}
