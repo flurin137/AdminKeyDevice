@@ -2,7 +2,6 @@ mod serial_wrapper;
 
 use crate::serial_wrapper::SerialWrapper;
 use serial2::SerialPort;
-use std::path::Path;
 
 fn main() -> Result<(), String> {
     let matching_device = get_matching_device().ok_or("Unable to find device".to_owned())?;
@@ -16,26 +15,28 @@ fn main() -> Result<(), String> {
 
 fn get_matching_device() -> Option<SerialWrapper> {
     let available_ports = SerialPort::available_ports().ok()?;
-    let matching_device = available_ports.iter().find(|a| is_correct_device(*a))?;
-    SerialWrapper::new(matching_device.to_owned()).ok()
-}
 
-fn is_correct_device(device: &Path) -> bool {
-    println!("Checking Port {:?}", device);
+    for port in available_ports {
+        println!("Checking Port {:?}", port);
 
-    let port = match SerialWrapper::new(device.to_owned()) {
-        Ok(port) => port,
-        _ => return false,
-    };
+        let port = match SerialWrapper::new(port.to_owned()) {
+            Ok(port) => port,
+            _ => continue,
+        };
 
-    if let Err(_) = port.write("Whaaat") {
-        return false;
+        if let Err(_) = port.write("Whaaat") {
+            continue;
+        }
+
+        let message = match port.read() {
+            Ok(message) => message,
+            Err(_) => continue,
+        };
+
+        if message == "Fuck YOU" {
+            return Some(port);
+        }
     }
 
-    let message = match port.read() {
-        Ok(message) => message,
-        Err(_) => return false,
-    };
-
-    return message == "Fuck YOU";
+    None
 }
