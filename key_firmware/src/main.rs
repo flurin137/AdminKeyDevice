@@ -10,7 +10,7 @@ use defmt::info;
 use embassy_executor::Spawner;
 use embassy_futures::join::join4;
 use embassy_rp::bind_interrupts;
-use embassy_rp::gpio::{Input, Pull};
+use embassy_rp::gpio::{Input, Level, Output, Pin, Pull};
 use embassy_rp::peripherals::USB;
 use embassy_rp::usb::{Driver, Instance, InterruptHandler};
 use embassy_sync::blocking_mutex::raw::ThreadModeRawMutex;
@@ -99,6 +99,7 @@ async fn main(_spawner: Spawner) {
     };
 
     let button_pin = peripherals.PIN_13;
+    let led_pin = peripherals.PIN_9;
 
     let mut writer = HidWriter::<_, 20>::new(&mut builder, &mut state, config);
 
@@ -158,10 +159,11 @@ async fn main(_spawner: Spawner) {
     };
 
     let echo_future = async {
+        let mut led = Output::new(led_pin, Level::Low);
         loop {
             cdc_class.wait_connection().await;
             info!("Connected");
-            let _ = listen_and_echo(&mut cdc_class, &mut flash_wrapper).await;
+            let _ = listen_and_echo(&mut cdc_class, &mut flash_wrapper, &mut led).await;
             info!("Disconnected");
         }
     };
@@ -180,11 +182,13 @@ impl From<EndpointError> for Disconnected {
     }
 }
 
-async fn listen_and_echo<'d, T: Instance + 'd>(
-    class: &mut CdcAcmClass<'d, Driver<'d, T>>,
+async fn listen_and_echo<'d, TDriver: Instance + 'd, TLed: Pin>(
+    class: &mut CdcAcmClass<'d, Driver<'d, TDriver>>,
     flash: &mut FlashWrapper<'d>,
+    led: &mut Output<'d, TLed>,
 ) -> Result<(), Disconnected> {
     let mut buf = [0; 64];
+
     loop {
         let n = class.read_packet(&mut buf).await?;
         let data = &buf[..n];
@@ -206,6 +210,8 @@ async fn listen_and_echo<'d, T: Instance + 'd>(
 
             let mut message = MESSAGE.lock().await;
             *message = buf;
+
+            led.set_high();
 
             info!("Buffer {:?}", buf);
         }
