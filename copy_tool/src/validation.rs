@@ -1,19 +1,19 @@
 use regex::Regex;
 
-pub enum Language {
-    DE_CH,
-    EN_US,
-}
+use crate::sanitizer::LanguageMapper;
 
 pub struct Validator {
     regex: Regex,
-    language: Language,
+    language_mapper: Box<dyn LanguageMapper>,
 }
 
 impl Validator {
-    pub fn new(language: Language) -> Self {
+    pub fn new(language_mapper: Box<dyn LanguageMapper>) -> Self {
         let regex = Regex::new(r"^[\w\d]+$").unwrap();
-        Self { regex, language }
+        Self {
+            regex,
+            language_mapper,
+        }
     }
 
     pub fn validate(&self, value: String) -> Result<String, String> {
@@ -29,26 +29,19 @@ impl Validator {
     }
 
     pub fn sanitize(&self, value: String) -> String {
-        return match self.language {
-            Language::DE_CH => value
-                .replace("z", "_")
-                .replace("y", "z")
-                .replace("_", "y")
-                .replace("Z", "_")
-                .replace("Y", "Z")
-                .replace("_", "Y"),
-            Language::EN_US => value,
-        };
+        self.language_mapper.sanitize(value)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::sanitizer::SwissGermanLanguageMapper;
+
     use super::*;
 
     #[test]
     fn test_too_long_string() {
-        let validator = Validator::new(Language::DE_CH);
+        let validator = Validator::new(SwissGermanLanguageMapper::new_boxed());
 
         let input =
             "dhfdskjhdsggfdskfhgasdkjghfjdsghfadshgfjkasghdfadsgasghdfjaghkdsfahfk".to_string();
@@ -60,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_invalid_chars() {
-        let validator = Validator::new(Language::DE_CH);
+        let validator = Validator::new(SwissGermanLanguageMapper::new_boxed());
 
         let input = "*/".to_string();
 
@@ -70,16 +63,5 @@ mod tests {
             Err("The string contains invalid characters".to_owned()),
             result
         )
-    }
-
-    #[test]
-    fn test_with_langiage_specific_chars() {
-        let validator = Validator::new(Language::DE_CH);
-
-        let input = "Yaahuz".to_string();
-
-        let result = validator.sanitize(input);
-
-        assert_eq!("Zaahuy".to_string(), result)
     }
 }
