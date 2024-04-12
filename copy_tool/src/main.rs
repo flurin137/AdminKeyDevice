@@ -13,7 +13,7 @@ use crate::clipboard::ClipboardTextReader;
 use crate::device::AdminKey;
 
 fn main() -> Result<(), String> {
-    let application = Application::build()?;
+    let mut application = Application::build()?;
 
     application.run()
 }
@@ -26,7 +26,7 @@ struct Application {
 
 impl Application {
     pub fn build() -> Result<Self, String> {
-        let mut clipboard = ClipboardTextReader::new();
+        let clipboard = ClipboardTextReader::new();
         let validator = Validator::new(SwissGermanLanguageMapper::new_boxed());
         let notification_writer = NotificationWriter::new("Admin Key Copy Tool".to_owned());
 
@@ -37,12 +37,12 @@ impl Application {
         })
     }
 
-    pub fn run(&self) -> Result<(), String> {
+    pub fn run(&mut self) -> Result<(), String> {
         let result = self.handle_request();
         self.notification_writer.write_notification(result)
     }
 
-    fn handle_request(&self) -> Result<String, String> {
+    fn handle_request(&mut self) -> Result<String, String> {
         let admin_key = AdminKey::connect()?;
 
         let data = self.clipboard.read()?;
