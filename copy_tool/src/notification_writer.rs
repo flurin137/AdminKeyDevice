@@ -10,13 +10,14 @@ impl NotificationWriter {
     }
 
     pub fn write_notification(&self, result: Result<String, String>) -> Result<(), String> {
-        let message = match result {
-            Ok(message) => format!("Success: \n {message}"),
-            Err(error) => format!("Error: \n {error}"),
+        let (summary, message) = match result {
+            Ok(message) => ("Success".to_owned(), message),
+            Err(error) => ("Error".to_owned(), error),
         };
 
         Notification::new()
-            .summary(&self.application_name)
+            .appname(&self.application_name)
+            .summary(&summary)
             .body(&message)
             .show()
             .map_err(|e| format!("Error writing Notification {e}"))
