@@ -1,5 +1,4 @@
 use std::{fmt::Display, io, path::PathBuf, thread::sleep, time};
-
 use serial2::SerialPort;
 
 pub struct SerialWrapper {
