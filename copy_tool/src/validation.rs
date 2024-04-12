@@ -21,6 +21,10 @@ impl Validator {
             return Err("String is too long".to_owned());
         }
 
+        if value.len() == 0 {
+            return Err("The string is empty".to_owned());
+        }
+
         if !self.regex.is_match(&value) {
             return Err("The string contains invalid characters".to_owned());
         }
