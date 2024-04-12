@@ -153,7 +153,7 @@ async fn main(_spawner: Spawner) {
             info!("Button Pressed");
             WRITE.signal(true);
 
-            Timer::after_millis(50).await;
+            Timer::after_millis(100).await;
             button.wait_for_high().await;
         }
     };
@@ -187,9 +187,9 @@ async fn listen_and_echo<'d, TDriver: Instance + 'd, TLed: Pin>(
     flash: &mut FlashWrapper<'d>,
     led: &mut Output<'d, TLed>,
 ) -> Result<(), Disconnected> {
-    let mut buf = [0; 64];
 
     loop {
+        let mut buf = [0; 64];
         let n = class.read_packet(&mut buf).await?;
         let data = &buf[..n];
         info!("Received data: {:x}", data);
