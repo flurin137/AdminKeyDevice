@@ -14,12 +14,12 @@ impl SwissGermanLanguageMapper {
 impl LanguageMapper for SwissGermanLanguageMapper {
     fn sanitize(&self, value: String) -> String {
         value
-            .replace("z", "_")
-            .replace("y", "z")
-            .replace("_", "y")
-            .replace("Z", "_")
-            .replace("Y", "Z")
-            .replace("_", "Y")
+            .replace('z', "_")
+            .replace('y', "z")
+            .replace('_', "y")
+            .replace('Z', "_")
+            .replace('Y', "Z")
+            .replace('_', "Y")
     }
 }
 
