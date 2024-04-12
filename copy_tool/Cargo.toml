@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-#clippers = "0.1.2"
+clippers = "0.1.2"
 crossterm = "0.27.0"
 regex = "1.10.4"
 serial2 = "0.2.20"
