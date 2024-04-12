@@ -8,7 +8,7 @@ pub struct AdminKey {
 
 impl AdminKey {
     pub fn connect() -> Result<Self, String> {
-        let serial_wrapper = get_serial_port().ok_or("err")?;
+        let serial_wrapper = get_serial_port().ok_or("Unable to find connected device")?;
 
         println!("Found Device {}", serial_wrapper);
 
